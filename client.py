@@ -39,6 +39,9 @@ def main():
         client.connect((host, port))
         print("Connected to server")
 
+        download_dir = Path("client_downloads")
+        download_dir.mkdir(exist_ok=True)
+
         while True:
             cmd = input("> ").strip()
             if not cmd:
@@ -88,6 +91,33 @@ def main():
                             client.sendall(chunk)
 
                     print("Server:", recv_line(client))
+
+                elif operation == "DOWNLOAD":
+                    if len(parts) != 2:
+                        print("Usage: DOWNLOAD <filename>")
+                        continue
+
+                    filename = Path(parts[1]).name
+                    send_line(client, f"DOWNLOAD {filename}")
+                    response = recv_line(client)
+
+                    header = response.split()
+                    if header[0] == "ERR":
+                        print("Server:", response)
+                        continue
+
+                    if len(header) != 2 or header[0] != "OK":
+                        print("Server:", response)
+                        continue
+
+                    size = int(header[1])
+                    file_data = recv_exact(client, size)
+
+                    save_path = download_dir / filename
+                    with open(save_path, "wb") as file:
+                        file.write(file_data)
+
+                    print(f"Downloaded: {save_path} ({size} bytes)")
 
                 else:
                     send_line(client, cmd)
