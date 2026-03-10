@@ -25,6 +25,16 @@ def send_line(conn: socket.socket, text: str) -> None:
     conn.sendall((text + "\n").encode("utf-8"))
 
 
+def recv_exact(conn: socket.socket, size: int) -> bytes:
+    data = bytearray()
+    while len(data) < size:
+        chunk = conn.recv(size - len(data))
+        if not chunk:
+            raise ConnectionError("Connection closed during file transfer")
+        data.extend(chunk)
+    return bytes(data)
+
+
 def handle_client(conn, addr):
     print(f"[+] Client connected: {addr}")
     try:
