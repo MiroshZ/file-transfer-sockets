@@ -46,6 +46,10 @@ def handle_client(conn, addr):
             try:
                 line = recv_line(conn).strip()
             except ConnectionError:
+                print(f"[-] Connection lost: {addr}")
+                break
+            except Exception as e:
+                print(f"[!] Read error from {addr}: {e}")
                 break
 
             if not line:
@@ -56,14 +60,17 @@ def handle_client(conn, addr):
             command = parts[0].upper()
 
             if command == "LIST":
-                files = []
-                for file_path in STORAGE_DIR.iterdir():
-                    if file_path.is_file():
-                        files.append((file_path.name, file_path.stat().st_size))
+                try:
+                    files = []
+                    for file_path in STORAGE_DIR.iterdir():
+                        if file_path.is_file():
+                            files.append((file_path.name, file_path.stat().st_size))
 
-                send_line(conn, f"OK {len(files)}")
-                for name, size in sorted(files):
-                    send_line(conn, f"{name} {size}")
+                    send_line(conn, f"OK {len(files)}")
+                    for name, size in sorted(files):
+                        send_line(conn, f"{name} {size}")
+                except Exception as e:
+                    send_line(conn, f"ERR LIST_FAILED {e}")
 
             elif command == "UPLOAD":
                 if len(parts) != 3:
@@ -90,8 +97,11 @@ def handle_client(conn, addr):
                         file.write(file_data)
                     send_line(conn, "OK")
                     print(f"[=] Uploaded: {filename} ({size} bytes) from {addr}")
+                except ConnectionError:
+                    print(f"[-] Upload interrupted: {addr}")
+                    break
                 except Exception as e:
-                    send_line(conn, f"ERR Upload failed: {e}")
+                    send_line(conn, f"ERR UPLOAD_FAILED {e}")
 
             elif command == "DOWNLOAD":
                 if len(parts) != 2:
@@ -105,15 +115,25 @@ def handle_client(conn, addr):
                     send_line(conn, "ERR NOT_FOUND")
                     continue
 
-                file_size = target_path.stat().st_size
-                send_line(conn, f"OK {file_size}")
+                try:
+                    file_size = target_path.stat().st_size
+                    if file_size <= 0:
+                        send_line(conn, "ERR EMPTY_FILE")
+                        continue
 
-                with open(target_path, "rb") as file:
-                    while True:
-                        chunk = file.read(4096)
-                        if not chunk:
-                            break
-                        conn.sendall(chunk)
+                    send_line(conn, f"OK {file_size}")
+
+                    with open(target_path, "rb") as file:
+                        while True:
+                            chunk = file.read(4096)
+                            if not chunk:
+                                break
+                            conn.sendall(chunk)
+                except ConnectionError:
+                    print(f"[-] Download interrupted: {addr}")
+                    break
+                except Exception as e:
+                    send_line(conn, f"ERR DOWNLOAD_FAILED {e}")
 
             elif command == "EXIT":
                 send_line(conn, "OK BYE")
