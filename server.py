@@ -93,6 +93,28 @@ def handle_client(conn, addr):
                 except Exception as e:
                     send_line(conn, f"ERR Upload failed: {e}")
 
+            elif command == "DOWNLOAD":
+                if len(parts) != 2:
+                    send_line(conn, "ERR Usage: DOWNLOAD <filename>")
+                    continue
+
+                filename = safe_filename(parts[1])
+                target_path = STORAGE_DIR / filename
+
+                if not target_path.exists() or not target_path.is_file():
+                    send_line(conn, "ERR NOT_FOUND")
+                    continue
+
+                file_size = target_path.stat().st_size
+                send_line(conn, f"OK {file_size}")
+
+                with open(target_path, "rb") as file:
+                    while True:
+                        chunk = file.read(4096)
+                        if not chunk:
+                            break
+                        conn.sendall(chunk)
+
             elif command == "EXIT":
                 send_line(conn, "OK BYE")
                 break
