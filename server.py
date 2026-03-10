@@ -35,6 +35,10 @@ def recv_exact(conn: socket.socket, size: int) -> bytes:
     return bytes(data)
 
 
+def safe_filename(name: str) -> str:
+    return Path(name).name
+
+
 def handle_client(conn, addr):
     print(f"[+] Client connected: {addr}")
     try:
@@ -60,6 +64,34 @@ def handle_client(conn, addr):
                 send_line(conn, f"OK {len(files)}")
                 for name, size in sorted(files):
                     send_line(conn, f"{name} {size}")
+
+            elif command == "UPLOAD":
+                if len(parts) != 3:
+                    send_line(conn, "ERR Usage: UPLOAD <filename> <size>")
+                    continue
+
+                filename = safe_filename(parts[1])
+
+                try:
+                    size = int(parts[2])
+                except ValueError:
+                    send_line(conn, "ERR Invalid file size")
+                    continue
+
+                if size <= 0:
+                    send_line(conn, "ERR EMPTY_FILE")
+                    continue
+
+                target_path = STORAGE_DIR / filename
+
+                try:
+                    file_data = recv_exact(conn, size)
+                    with open(target_path, "wb") as file:
+                        file.write(file_data)
+                    send_line(conn, "OK")
+                    print(f"[=] Uploaded: {filename} ({size} bytes) from {addr}")
+                except Exception as e:
+                    send_line(conn, f"ERR Upload failed: {e}")
 
             elif command == "EXIT":
                 send_line(conn, "OK BYE")
