@@ -33,11 +33,27 @@ def main():
             if not cmd:
                 continue
 
+            parts = cmd.split()
+            operation = parts[0].upper()
+
             send_line(client, cmd)
             response = recv_line(client)
-            print("Server:", response)
 
-            if cmd.upper() == "EXIT":
+            if operation == "LIST":
+                header = response.split()
+                if len(header) == 2 and header[0] == "OK":
+                    count = int(header[1])
+                    if count == 0:
+                        print("(empty)")
+                    else:
+                        for _ in range(count):
+                            print(recv_line(client))
+                else:
+                    print("Server:", response)
+            else:
+                print("Server:", response)
+
+            if operation == "EXIT":
                 break
 
 
