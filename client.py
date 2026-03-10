@@ -1,4 +1,5 @@
 import socket
+from pathlib import Path
 
 MAX_LINE = 8192
 
@@ -46,25 +47,60 @@ def main():
             parts = cmd.split()
             operation = parts[0].upper()
 
-            send_line(client, cmd)
-            response = recv_line(client)
+            try:
+                if operation == "LIST":
+                    send_line(client, cmd)
+                    response = recv_line(client)
 
-            if operation == "LIST":
-                header = response.split()
-                if len(header) == 2 and header[0] == "OK":
-                    count = int(header[1])
-                    if count == 0:
-                        print("(empty)")
+                    header = response.split()
+                    if len(header) == 2 and header[0] == "OK":
+                        count = int(header[1])
+                        if count == 0:
+                            print("(empty)")
+                        else:
+                            for _ in range(count):
+                                print(recv_line(client))
                     else:
-                        for _ in range(count):
-                            print(recv_line(client))
-                else:
-                    print("Server:", response)
-            else:
-                print("Server:", response)
+                        print("Server:", response)
 
-            if operation == "EXIT":
+                elif operation == "UPLOAD":
+                    if len(parts) != 2:
+                        print("Usage: UPLOAD <path_to_file>")
+                        continue
+
+                    path = Path(parts[1])
+                    if not path.exists() or not path.is_file():
+                        print("Error: file not found")
+                        continue
+
+                    size = path.stat().st_size
+                    if size <= 0:
+                        print("Error: empty file")
+                        continue
+
+                    send_line(client, f"UPLOAD {path.name} {size}")
+
+                    with open(path, "rb") as file:
+                        while True:
+                            chunk = file.read(4096)
+                            if not chunk:
+                                break
+                            client.sendall(chunk)
+
+                    print("Server:", recv_line(client))
+
+                else:
+                    send_line(client, cmd)
+                    print("Server:", recv_line(client))
+
+                if operation == "EXIT":
+                    break
+
+            except ConnectionError:
+                print("Connection lost")
                 break
+            except Exception as e:
+                print("Error:", e)
 
 
 if __name__ == "__main__":
