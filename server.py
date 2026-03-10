@@ -38,7 +38,25 @@ def handle_client(conn, addr):
                 send_line(conn, "ERR Empty command")
                 continue
 
-            send_line(conn, f"OK {line}")
+            parts = line.split()
+            command = parts[0].upper()
+
+            if command == "LIST":
+                files = []
+                for file_path in STORAGE_DIR.iterdir():
+                    if file_path.is_file():
+                        files.append((file_path.name, file_path.stat().st_size))
+
+                send_line(conn, f"OK {len(files)}")
+                for name, size in sorted(files):
+                    send_line(conn, f"{name} {size}")
+
+            elif command == "EXIT":
+                send_line(conn, "OK BYE")
+                break
+
+            else:
+                send_line(conn, "ERR UNKNOWN_COMMAND")
 
     except Exception as e:
         print(f"[!] Client error {addr}: {e}")
